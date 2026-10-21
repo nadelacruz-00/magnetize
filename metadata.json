@@ -5,5 +5,5 @@
   "shell-version": ["47", "48", "49", "50"],
   "settings-schema": "org.gnome.shell.extensions.magnetize",
   "url": "https://github.com/nadelacruz-00/magnetize",
-  "version-name": "1.0"
+  "version-name": "1.1"
 }

@@ -22,6 +22,8 @@ git clone https://github.com/nadelacruz-00/magnetize && cd magnetize
 ./install.sh --uninstall  # remove
 ```
 
+Or download the zip from [Releases](https://github.com/nadelacruz-00/magnetize/releases/latest) and run `gnome-extensions install magnetize@nadelacruz-00.github.io.shell-extension.zip`.
+
 </details>
 
 ## Shortcuts
