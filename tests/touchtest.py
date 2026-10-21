@@ -2,6 +2,8 @@
 
 Usage: python3 tests/touchtest.py [--mouse] [left|right|top|top-left|bottom ...]
 
+Add :ms to hold at a target before lifting, e.g. top:1500 (default 400).
+
 Each target drags the (maximized) test window from the middle of its title
 bar to that spot on the screen, then lifts. Touches go through Mutter's
 RemoteDesktop D-Bus API, tied to a screencast of the first monitor, which is
@@ -122,7 +124,8 @@ def on_activate(app):
             call(RD, rd_session, RD + '.Session', 'Stop')
             GLib.timeout_add(1000, app.quit)
             return False
-        target = targets.pop(0)
+        target, _, hold = targets.pop(0).partition(':')
+        hold = int(hold or 400)
         win.maximize()
 
         def go():
@@ -139,7 +142,7 @@ def on_activate(app):
                 i = next(steps, None)
                 if i is None:
                     # Hold still a moment, like a person would, then lift.
-                    GLib.timeout_add(400, lift)
+                    GLib.timeout_add(hold, lift)
                     return False
                 f = i / 30
                 touch('Motion', 0, start[0] + (end[0] - start[0]) * f, start[1] + (end[1] - start[1]) * f)

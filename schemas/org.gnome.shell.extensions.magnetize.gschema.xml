@@ -80,6 +80,18 @@
       <default>0</default>
       <summary>Gap in pixels around snapped windows</summary>
     </key>
+    <key name="top-edge" type="s">
+      <choices>
+        <choice value="maximize-hold-top-half"/><choice value="top-half-hold-maximize"/><choice value="maximize"/>
+      </choices>
+      <default>'maximize-hold-top-half'</default>
+      <summary>What dragging to the top edge does, and what holding there does</summary>
+    </key>
+    <key name="top-edge-hold-time" type="i">
+      <range min="200" max="3000"/>
+      <default>1000</default>
+      <summary>How long to hold at the top edge, in milliseconds</summary>
+    </key>
     <key name="show-indicator" type="b">
       <default>true</default>
       <summary>Show the Magnetize menu in the top bar</summary>

@@ -39,6 +39,12 @@ const SPRITE_RANK = SpriteRole
     ? {[SpriteRole.TOUCHPOINT]: 2, [SpriteRole.TABLET]: 1, [SpriteRole.POINTER]: 0}
     : {};
 const BOTTOM_THIRDS = ['left-third', 'center-third', 'right-third'];
+// Top edge setting -> [what you get at once, what holding still there gives].
+const TOP_EDGE = {
+    'maximize-hold-top-half': ['maximize-window', 'top-half'],
+    'top-half-hold-maximize': ['top-half', 'maximize-window'],
+    'maximize': ['maximize-window', null],
+};
 
 // GNOME 49 replaced get_maximized() and dropped the flags argument from
 // maximize()/unmaximize(); these keep GNOME 47 and 48 working too.
@@ -334,7 +340,9 @@ export default class MagnetizeExtension extends Extension {
 
         this._endDrag();
         const sprite = this._findDragSprite(win);
-        const drag = {win, sprite, moved: false, zone: null, bottomAnchor: null};
+        const drag = {win, sprite, moved: false, zone: null, bottomAnchor: null, topSince: null};
+        drag.topEdge = TOP_EDGE[this._settings.get_string('top-edge')] ?? TOP_EDGE.maximize;
+        drag.holdTime = this._settings.get_int('top-edge-hold-time') * 1000; // to µs
         drag.touch = !!sprite && sprite.role !== SpriteRole.POINTER;
         [drag.startX, drag.startY] = this._dragPosition(drag);
         this._drag = drag;
@@ -475,7 +483,7 @@ export default class MagnetizeExtension extends Extension {
         else if ((bottom && nearRight) || (right && nearBottom))
             key = 'bottom-right';
         else if (top)
-            key = 'maximize-window';
+            key = this._topZone(drag);
         else if (left)
             key = 'left-half';
         else if (right)
@@ -485,7 +493,21 @@ export default class MagnetizeExtension extends Extension {
 
         if (!BOTTOM_THIRDS.includes(key) && !key?.endsWith('two-thirds'))
             drag.bottomAnchor = null;
+        if (!top || key !== this._topZone(drag, false))
+            drag.topSince = null;
         return key ? {key, monitorIndex} : null;
+    }
+
+    // Top edge: one layout straight away, the other after holding there for
+    // a while (like Ubuntu's Tiling Assistant). Moving along the edge keeps
+    // the hold going; leaving it starts over.
+    _topZone(drag, track = true) {
+        const [first, held] = drag.topEdge;
+        const now = GLib.get_monotonic_time();
+        if (track)
+            drag.topSince ??= now;
+        const holding = drag.topSince !== null && now - drag.topSince >= drag.holdTime;
+        return held && holding ? held : first;
     }
 
     // Bottom edge: thirds, and sliding into a neighbouring third makes it two

@@ -47,7 +47,7 @@ Drag a window to a screen edge:
 
 - **Left or right edge:** half
 - **Corner:** quarter
-- **Top:** maximize
+- **Top:** maximize. Keep holding there for a second to get the top half instead.
 - **Bottom:** thirds. Slide along the bottom into the next third for two thirds.
 
 A preview shows where the window will land, and dragging a snapped window away gives it its old size back. Works with a mouse, a touchscreen or a pen.
@@ -61,6 +61,7 @@ Open them from the magnet in the top bar, or run `gnome-extensions prefs magneti
 - Keyboard layout (auto-detected) and modifier keys (Ctrl+Alt, Super+Alt or Ctrl+Super)
 - Change any shortcut, including fourths and sixths, which start unbound
 - Gaps between windows
+- What the top edge does (maximize first or top half first) and how long to hold it
 - Turn drag snapping or the top-bar menu on or off
 
 ## Good to know

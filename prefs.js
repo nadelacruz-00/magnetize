@@ -55,6 +55,23 @@ export default class MagnetizePreferences extends ExtensionPreferences {
         settings.bind('drag-snapping', drag, 'active', Gio.SettingsBindFlags.DEFAULT);
         snapping.add(drag);
 
+        snapping.add(this._choiceRow(settings, 'top-edge', 'Top Edge', [
+            ['maximize-hold-top-half', 'Maximize → top half'],
+            ['top-half-hold-maximize', 'Top half → maximize'],
+            ['maximize', 'Maximize only'],
+        ], 'Hold at the top edge to switch to the second'));
+
+        const hold = Adw.SpinRow.new_with_range(200, 3000, 100);
+        hold.set({title: 'Hold Time', subtitle: 'Milliseconds at the top edge before it switches'});
+        settings.bind('top-edge-hold-time', hold, 'value', Gio.SettingsBindFlags.DEFAULT);
+        const syncHold = () => {
+            hold.sensitive = settings.get_boolean('drag-snapping') && settings.get_string('top-edge') !== 'maximize';
+        };
+        syncHold();
+        const holdIds = ['changed::top-edge', 'changed::drag-snapping'].map(sig => settings.connect(sig, syncHold));
+        hold.connect('destroy', () => holdIds.forEach(id => settings.disconnect(id)));
+        snapping.add(hold);
+
         const gap = Adw.SpinRow.new_with_range(0, 64, 2);
         gap.set({title: 'Window Gap', subtitle: 'Space in pixels around snapped windows'});
         settings.bind('window-gap', gap, 'value', Gio.SettingsBindFlags.DEFAULT);
@@ -86,7 +103,8 @@ export default class MagnetizePreferences extends ExtensionPreferences {
             const value = choices[row.selected][0];
             if (value !== settings.get_string(key)) {
                 settings.set_string(key, value);
-                this._applyPreset(false);
+                if (key === 'keyboard-layout' || key === 'modifiers')
+                    this._applyPreset(false);
             }
         });
         return row;
