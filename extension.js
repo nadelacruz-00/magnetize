@@ -28,8 +28,16 @@ const MOVE_OPS = [Meta.GrabOp.MOVING, Meta.GrabOp.MOVING_UNCONSTRAINED];
 const SNAPPABLE_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG];
 
 const EDGE = 10; // px from a screen edge that counts as touching it
+const TOUCH_EDGE = 40; // the same for fingers and pens, which can't reach the very edge
 const CORNER = 0.15; // share of an edge, from each end, that counts as a corner
 const UNSNAP_DISTANCE = 8; // px of drag before a snapped window gets its size back
+const TOUCH_UNSNAP_DISTANCE = 16; // fingers wobble more than a mouse
+// Sprites (one per mouse, pen and finger) arrived in GNOME 49; older
+// versions fall back to the mouse pointer.
+const SpriteRole = Clutter.SpriteRole;
+const SPRITE_RANK = SpriteRole
+    ? {[SpriteRole.TOUCHPOINT]: 2, [SpriteRole.TABLET]: 1, [SpriteRole.POINTER]: 0}
+    : {};
 const BOTTOM_THIRDS = ['left-third', 'center-third', 'right-third'];
 
 // GNOME 49 replaced get_maximized() and dropped the flags argument from
@@ -325,8 +333,11 @@ export default class MagnetizeExtension extends Extension {
             return;
 
         this._endDrag();
-        const [x, y] = global.get_pointer();
-        this._drag = {win, startX: x, startY: y, moved: false, zone: null, bottomAnchor: null};
+        const sprite = this._findDragSprite(win);
+        const drag = {win, sprite, moved: false, zone: null, bottomAnchor: null};
+        drag.touch = !!sprite && sprite.role !== SpriteRole.POINTER;
+        [drag.startX, drag.startY] = this._dragPosition(drag);
+        this._drag = drag;
         this._dragTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => {
             this._onDragTick();
             return GLib.SOURCE_CONTINUE;
@@ -351,13 +362,56 @@ export default class MagnetizeExtension extends Extension {
         this._hidePreview();
     }
 
+    // On Wayland a finger or pen has its own sprite and doesn't move the mouse
+    // pointer, so work out which one is dragging. A finger on the screen wins
+    // (where the drag started can be just outside the frame, under the top
+    // bar); a pen only counts near the window, since it often hovers nearby.
+    _findDragSprite(win) {
+        if (!global.stage.foreach_sprite)
+            return null;
+        const frame = win.get_frame_rect();
+        const distance = ({x, y}) => Math.hypot(
+            Math.max(frame.x - x, 0, x - (frame.x + frame.width)),
+            Math.max(frame.y - y, 0, y - (frame.y + frame.height)));
+
+        let best = null;
+        let bestDistance = Infinity;
+        global.stage.foreach_sprite((_stage, sprite) => {
+            const d = distance(sprite.get_coords());
+            const usable = sprite.role === SpriteRole.TOUCHPOINT || d <= TOUCH_EDGE;
+            const better = !best || SPRITE_RANK[sprite.role] > SPRITE_RANK[best.role] ||
+                (sprite.role === best.role && d < bestDistance);
+            if (usable && better) {
+                best = sprite;
+                bestDistance = d;
+            }
+            return true;
+        });
+        return best;
+    }
+
+    _dragPosition(drag) {
+        try {
+            if (drag.sprite) {
+                const {x, y} = drag.sprite.get_coords();
+                drag.last = [x, y];
+                return drag.last;
+            }
+        } catch {
+            // The finger lifted and its sprite is gone; keep the last spot.
+            return drag.last;
+        }
+        return global.get_pointer().slice(0, 2);
+    }
+
     _onDragTick() {
         const drag = this._drag;
-        const [x, y] = global.get_pointer();
+        const [x, y] = this._dragPosition(drag);
 
         // A click on the title bar also starts a grab; wait for a real drag.
         if (!drag.moved) {
-            if (Math.hypot(x - drag.startX, y - drag.startY) < UNSNAP_DISTANCE)
+            const distance = drag.touch ? TOUCH_UNSNAP_DISTANCE : UNSNAP_DISTANCE;
+            if (Math.hypot(x - drag.startX, y - drag.startY) < distance)
                 return;
             drag.moved = true;
             this._unsnapForDrag(drag.win, x);
@@ -391,15 +445,20 @@ export default class MagnetizeExtension extends Extension {
 
     _zoneAt(x, y, drag) {
         const display = global.display;
-        const monitorIndex = display.get_current_monitor();
+        // The monitor under the drag, not under the mouse: they differ for touch.
+        let monitorIndex = Main.layoutManager.monitors.findIndex(mon =>
+            x >= mon.x && x < mon.x + mon.width && y >= mon.y && y < mon.y + mon.height);
+        if (monitorIndex < 0)
+            monitorIndex = display.get_current_monitor();
         const m = display.get_monitor_geometry(monitorIndex);
         // Edges shared with another monitor are for crossing, not snapping.
         const outer = dir => display.get_monitor_neighbor_index(monitorIndex, dir) < 0;
 
-        const left = x <= m.x + EDGE && outer(Meta.DisplayDirection.LEFT);
-        const right = x >= m.x + m.width - 1 - EDGE && outer(Meta.DisplayDirection.RIGHT);
-        const top = y <= m.y + EDGE && outer(Meta.DisplayDirection.UP);
-        const bottom = y >= m.y + m.height - 1 - EDGE && outer(Meta.DisplayDirection.DOWN);
+        const edge = drag.touch ? TOUCH_EDGE : EDGE;
+        const left = x <= m.x + edge && outer(Meta.DisplayDirection.LEFT);
+        const right = x >= m.x + m.width - 1 - edge && outer(Meta.DisplayDirection.RIGHT);
+        const top = y <= m.y + edge && outer(Meta.DisplayDirection.UP);
+        const bottom = y >= m.y + m.height - 1 - edge && outer(Meta.DisplayDirection.DOWN);
 
         const nearLeft = x < m.x + m.width * CORNER;
         const nearRight = x > m.x + m.width * (1 - CORNER);

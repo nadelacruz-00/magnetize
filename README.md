@@ -48,7 +48,7 @@ Drag a window to a screen edge:
 - **Top:** maximize
 - **Bottom:** thirds. Slide along the bottom into the next third for two thirds.
 
-A preview shows where the window will land, and dragging a snapped window away gives it its old size back.
+A preview shows where the window will land, and dragging a snapped window away gives it its old size back. Works with a mouse, a touchscreen or a pen.
 
 ## Settings
 
